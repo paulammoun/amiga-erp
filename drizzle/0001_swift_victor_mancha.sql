@@ -1,0 +1,1 @@
+ALTER TABLE `invoices` ADD `tax_rate` real;

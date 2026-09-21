@@ -1,0 +1,4 @@
+"use client";
+import {useEffect,useState} from 'react';
+import SalesReturns from '../../components/sales-returns';
+export default function ReturnPrint(){const[id,setId]=useState(0);useEffect(()=>setId(Number(new URLSearchParams(location.search).get('id'))),[]);return <main className="mx-auto max-w-[1600px] p-5"><style>{`@media print{@page{size:A4 landscape;margin:10mm}body{background:white!important}.sales-return-screen{font-size:10pt}.sales-return-screen input{border:0!important;background:transparent!important;color:black!important}.sales-return-screen table{font-size:9pt}.sales-return-screen th,.sales-return-screen td{white-space:normal!important}.sales-return-screen .overflow-x-auto{overflow:visible!important}}`}</style>{id?<SalesReturns customers={[]} invoices={[]} printId={id} onSaved={()=>{}}/>:<p>Select a sales return to print.</p>}</main>}

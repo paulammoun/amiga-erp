@@ -1,0 +1,2 @@
+# Copy to .dev.vars and replace the placeholder. Never commit .dev.vars.
+SUPERADMIN_PASSWORD_HASH=REPLACE_WITH_NEW_GENERATED_HASH

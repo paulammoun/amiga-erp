@@ -1,0 +1,98 @@
+import {DatabaseSync} from 'node:sqlite';
+import fs from 'node:fs';import os from 'node:os';import path from 'node:path';import {pathToFileURL} from 'node:url';
+import assert from 'node:assert/strict';import {createRequire} from 'node:module';
+const require=createRequire(fs.realpathSync('node_modules/drizzle-kit/package.json')),{build}=require('esbuild');
+const db=new DatabaseSync(':memory:');
+for(const f of fs.readdirSync('drizzle').filter(f=>f.endsWith('.sql')&&!f.startsWith('0048')).sort())db.exec(fs.readFileSync('drizzle/'+f,'utf8'));
+db.exec(`INSERT INTO customers(company_code,customer_code,name) VALUES('a','000222','Existing eligible'),('a','CUS-OLD','Existing incompatible');
+INSERT INTO customers(company_code,customer_code,name,account_number) VALUES('a','000333','Existing numbered','4111999999');
+INSERT INTO accounts(company_code,account_number,name,account_type) VALUES('a','4111999999','Old name','asset');
+INSERT INTO accounting_transactions(company_code,transaction_type,source_id,transaction_date,account_number,currency,reference,amount_currency,amount_local_currency,indicator) VALUES('a','sale',3,'2020-01-01','4111999999','USD','OLD',20,20,'debit');`);
+const legacySnapshot=Object.fromEntries(['customers','accounts','accounting_transactions'].map(table=>[table,db.prepare('SELECT * FROM '+table).all()]));
+db.exec(fs.readFileSync('drizzle/0048_rapid_pyro.sql','utf8'));
+for(const [table,rows] of Object.entries(legacySnapshot)){const current=db.prepare('SELECT * FROM '+table).all();for(let i=0;i<rows.length;i++)for(const key of Object.keys(rows[i]))assert.equal(current[i][key],rows[i][key]);}
+function prepare(sql){let args=[];const obj={sql,bind(...a){args=a;return obj},async first(){return db.prepare(sql).get(...args)??null},async all(){return {results:db.prepare(sql).all(...args),success:true}},async run(){return {success:true,meta:db.prepare(sql).run(...args)}},exec(){const stmt=db.prepare(sql);return {results:stmt.all(...args),success:true}}};return obj}
+globalThis.__db={prepare,async batch(statements){db.exec('BEGIN');try{const r=statements.map(s=>s.exec());db.exec('COMMIT');return r}catch(e){db.exec('ROLLBACK');throw e}}};globalThis.__auth={companyCode:'a',role:'superadmin'};
+const dir=fs.mkdtempSync(path.join(os.tmpdir(),'coa-tests-'));
+async function module(file){const outfile=path.join(dir,file.replaceAll('/','_')+'.mjs');await build({absWorkingDir:process.cwd(),tsconfigRaw:{compilerOptions:{}},entryPoints:[path.resolve(file)],outfile,bundle:true,platform:'node',format:'esm',logLevel:'silent',plugins:[{name:'d1-test',setup(b){b.onResolve({filter:/.*/},a=>{if(a.path.endsWith('/db/auth'))return {path:'auth',namespace:'test'};if(/^(\.\.\/)+db$|^\.\/index$|^\.$/.test(a.path))return {path:'db',namespace:'test'};const target=path.isAbsolute(a.path)?a.path:path.resolve(path.dirname(a.importer),a.path);return {path:target.endsWith('.ts')?target:target+'.ts',namespace:'source'}});b.onLoad({filter:/.*/,namespace:'source'},a=>({contents:fs.readFileSync(a.path,'utf8'),loader:'ts'}));b.onResolve({filter:/db\/auth$/},()=>({path:'auth',namespace:'test'}));b.onResolve({filter:/^(\.\.\/)+db$|^\.\/index$|^\.$/},()=>({path:'db',namespace:'test'}));b.onLoad({filter:/.*/,namespace:'test'},a=>({contents:a.path==='auth'?'export const requireUser=async()=>globalThis.__auth;':'export const getRawDb=()=>globalThis.__db;'}))}}]});return import(pathToFileURL(outfile).href)}
+const {accountingDatabase}=await module('db/coa-write.ts');globalThis.__db=accountingDatabase(globalThis.__db);
+const setup=await module('app/api/account-setup/route.ts'),migration=await module('app/api/account-migration/route.ts'),accounts=await module('app/api/accounts/route.ts'),suppliers=await module('app/api/suppliers/route.ts'),accounting=await module('db/accounting.ts');
+const req=(url,body,method='POST')=>new Request('https://test'+url,{method,headers:{'content-type':'application/json'},body:JSON.stringify(body)});
+const setupResponse=await setup.PUT(req('/api/account-setup',{customerAccountPrefix:'4111',supplierAccountPrefix:'4011',createGroups:true},'PUT'));assert.equal(setupResponse.status,200,await setupResponse.clone().text());
+let report=await (await migration.GET(new Request('https://test/api/account-migration'))).json();assert.equal(report.ready.length,2);assert.ok(report.issues.some(i=>i.code==='CUS-OLD'));
+const preserved=db.prepare('SELECT * FROM accounting_transactions').all();
+let response=await migration.POST(req('/api/account-migration',{fingerprint:report.fingerprint}));assert.equal(response.status,200,await response.clone().text());assert.equal((await response.json()).report.ready.length,0);assert.deepEqual(db.prepare('SELECT * FROM accounting_transactions').all(),preserved);
+assert.equal(db.prepare("SELECT account_number FROM customers WHERE customer_code='000333'").get().account_number,'4111999999');
+assert.equal((await migration.POST(req('/api/account-migration',{fingerprint:report.fingerprint}))).status,409);
+response=await suppliers.POST(req('/api/suppliers',{code:'012345',name:'Supplier'}));assert.equal(response.status,201,await response.clone().text());const supplier=(await response.json()).supplier;assert.equal(supplier.accountNumber,'4011012345');assert.ok(supplier.accountId);
+assert.equal((await suppliers.POST(req('/api/suppliers',{code:'012345',name:'Supplier'}))).status,409);
+response=await suppliers.PUT(req('/api/suppliers',{...supplier,name:'Renamed supplier'},'PUT'));assert.equal(response.status,200);assert.equal(db.prepare('SELECT name FROM accounts WHERE id=?').get(supplier.accountId).name,'Renamed supplier');
+assert.equal((await suppliers.PUT(req('/api/suppliers',{...supplier,code:'012346'},'PUT'))).status,400);
+// Execute the application's existing sale/purchase posting statements unchanged in count and amounts.
+db.exec(`INSERT INTO accounts(company_code,account_number,name,account_type) VALUES('a','7','Revenue','income'),('a','6','Purchases','expense'),('a','44','Tax','liability');
+INSERT INTO accounts(company_code,account_number,name,account_type) VALUES('a','7000000001','Sales','income'),('a','6000000001','Purchases','expense'),('a','4400000001','Tax','liability');
+UPDATE workshop_settings SET sales_account_number='7000000001',tax_account_number='4400000001',purchase_account_number='6000000001',purchase_tax_account_number='4400000001' WHERE company_code='a';
+INSERT INTO invoices(company_code,invoice_number,customer_id,invoice_date,currency,subtotal,tax,total) VALUES('a','NEW-SALE',1,'2026-01-01','USD',100,11,111);
+INSERT INTO purchase_invoices(company_code,purchase_number,supplier_id,supplier_name,purchase_date,currency,subtotal,tax,total) VALUES('a','NEW-PURCHASE',${supplier.id},'Supplier','2026-01-01','USD',100,11,111);`);
+await globalThis.__db.batch(accounting.documentAccounting(globalThis.__db,'sale','NEW-SALE','a'));
+await globalThis.__db.batch(accounting.documentAccounting(globalThis.__db,'purchase','NEW-PURCHASE','a'));
+assert.equal(db.prepare("SELECT count(*) n FROM accounting_transactions WHERE reference IN ('NEW-SALE','NEW-PURCHASE')").get().n,6);
+assert.equal(db.prepare("SELECT account_id FROM accounting_transactions WHERE notes='Supplier payable'").get().account_id,supplier.accountId);
+assert.equal(db.prepare("SELECT SUM(CASE WHEN indicator='debit' THEN amount_currency ELSE -amount_currency END) n FROM accounting_transactions WHERE reference IN ('NEW-SALE','NEW-PURCHASE')").get().n,0);
+const eligible=(await (await accounts.GET(new Request('https://test/api/accounts?posting=1'))).json()).accounts;assert.ok(eligible.every(a=>a.kind==='posting'&&a.active&&a.accountNumber.length===10));
+const tree=(await (await accounts.GET(new Request('https://test/api/accounts'))).json()).accounts;assert.equal(tree.find(a=>a.accountNumber==='4111000222').parentId,tree.find(a=>a.accountNumber==='4111').id);
+assert.equal(tree.find(a=>a.accountNumber==='4111').balance,131);
+const customers=await module('app/api/customers/route.ts'),customerImport=await module('app/api/customers/import/route.ts'),journals=await module('app/api/journal-vouchers/route.ts');
+db.exec("INSERT INTO currencies(company_code,code,name,rate,active) VALUES('a','USD','USD',1,1); INSERT INTO salesmen(company_code,salesman_code,name) VALUES('a','UNASSIGNED','Unassigned')");
+response=await customers.POST(req('/api/customers',{code:'000444',name:'API customer'}));assert.equal(response.status,201,await response.clone().text());const created=(await response.json()).customer;assert.equal(created.accountNumber,'4111000444');assert.ok(created.accountId);
+response=await customers.PUT(req('/api/customers',{...created,name:'API renamed customer'},'PUT'));assert.equal(response.status,200,await response.clone().text());assert.equal(db.prepare('SELECT name FROM accounts WHERE id=?').get(created.accountId).name,'API renamed customer');
+assert.equal((await customers.POST(req('/api/customers',{code:'444',name:'Bad code'}))).status,400);
+const csv=()=>new Request('https://test/api/customers/import',{method:'POST',body:'Code,Name\n000445,Imported customer\n'});
+assert.equal((await customerImport.POST(csv())).status,200);assert.equal((await customerImport.POST(csv())).status,200);
+assert.equal(db.prepare("SELECT count(*) n FROM accounts WHERE company_code='a' AND account_number='4111000445'").get().n,1);
+assert.equal((await customerImport.POST(new Request('https://test/api/customers/import',{method:'POST',body:'Code,Name\n12,Bad customer\n'}))).status,400);
+const receipts=await module('app/api/receipts/route.ts');
+const payment={customerId:created.id,receiptDate:'2026-01-01',amount:10,currency:'USD',accountNumber:'7000000001',requestKey:crypto.randomUUID()};
+response=await receipts.POST(req('/api/receipts',payment));assert.equal(response.status,201,await response.clone().text());
+response=await receipts.POST(req('/api/receipts',payment));assert.equal(response.status,200,await response.clone().text());assert.equal((await response.json()).duplicate,true);
+assert.equal(db.prepare("SELECT count(*) n FROM accounting_transactions WHERE transaction_type='receipt'").get().n,2);
+assert.equal(db.prepare("SELECT account_id FROM accounting_transactions WHERE notes='Customer receivable settled'").get().account_id,created.accountId);
+const trial=await module('app/api/trial-balance/route.ts');assert.equal((await trial.GET(new Request('https://test/api/trial-balance?from=2020-01-01&to=2026-12-31'))).status,200);
+response=await journals.POST(req('/api/journal-vouchers',{voucherDate:'2026-01-01',lines:[{accountNumber:'4111',currency:'USD',debit:10,credit:0,localAmount:10},{accountNumber:'7000000001',currency:'USD',debit:0,credit:10,localAmount:10}]}));assert.equal(response.status,400);
+console.log('PASS: real API prefix setup, migration dry run/apply/retry, incompatible-code report, existing-number/history preservation, supplier creation/rename/retry/code lock, sale and purchase double entries, eligible selectors and group balances.');
+console.log('PASS: customer create and rename APIs, CSV import retry, incompatible customer/import codes, backend journal rejection of group accounts.');
+const createAccount=(number,name='Manual')=>accounts.POST(req('/api/accounts',{accountNumber:number,name,accountType:'asset',currency:'USD',active:true}));
+for(const code of ['123456','123456789','12x','12345678901'])assert.equal((await createAccount(code)).status,400);
+assert.equal((await createAccount('8888000001')).status,400);
+assert.equal((await createAccount('0012')).status,201);assert.equal((await createAccount('0012000001')).status,201);
+assert.equal((await createAccount('41110')).status,201);
+let current=(await (await accounts.GET(new Request('https://test/api/accounts'))).json()).accounts;
+assert.equal(current.find(a=>a.accountNumber==='4111000444').parentId,current.find(a=>a.accountNumber==='41110').id);
+const customerAccount=current.find(a=>a.id===created.accountId);
+assert.equal((await accounts.PUT(req('/api/accounts',{...customerAccount,accountNumber:'4111000990'},'PUT'))).status,400);
+assert.equal((await accounts.PUT(req('/api/accounts',{...customerAccount,name:'Invalid manual rename'},'PUT'))).status,400);
+const txCount=db.prepare('SELECT count(*) n FROM accounting_transactions').get().n;
+const ledgerWrite=(code,company='a')=>globalThis.__db.prepare("INSERT INTO accounting_transactions(company_code,transaction_type,source_id,transaction_date,account_number,currency,reference,amount_currency,amount_local_currency,indicator) VALUES(?,'journal',9,'2026-01-01',?,'USD','INVALID',1,1,'debit')").bind(company,code);
+await assert.rejects(()=>globalThis.__db.batch([ledgerWrite('4111')]),/active 10-digit/);
+await assert.rejects(()=>ledgerWrite('4111').run(),/active 10-digit/);
+await assert.rejects(()=>globalThis.__db.batch([ledgerWrite('4111000444','other-company')]),/active 10-digit/);
+assert.equal(db.prepare('SELECT count(*) n FROM accounting_transactions').get().n,txCount);
+assert.equal((await accounts.PUT(req('/api/accounts',{...customerAccount,active:false},'PUT'))).status,200);
+await assert.rejects(()=>globalThis.__db.batch([ledgerWrite('4111000444')]),/active 10-digit/);
+await assert.rejects(()=>globalThis.__db.batch([globalThis.__db.prepare("INSERT INTO journal_vouchers(company_code,voucher_number,voucher_date,currency) VALUES('a','ATOMIC-FAIL','2026-01-01','USD')"),ledgerWrite('4111')]),/active 10-digit/);
+assert.equal(db.prepare("SELECT count(*) n FROM journal_vouchers WHERE voucher_number='ATOMIC-FAIL'").get().n,0);
+assert.equal((await createAccount('4222')).status,201);
+response=await setup.PUT(req('/api/account-setup',{customerAccountPrefix:'4222',supplierAccountPrefix:'4011',createGroups:false},'PUT'));assert.equal(response.status,200);
+response=await customers.POST(req('/api/customers',{code:'000446',name:'After prefix change'}));assert.equal(response.status,201,await response.clone().text());assert.equal((await response.json()).customer.accountNumber,'4222000446');
+assert.equal(db.prepare('SELECT account_number FROM customers WHERE id=?').get(created.id).account_number,'4111000444');
+assert.equal((await createAccount('4222000999')).status,201);
+response=await customers.POST(req('/api/customers',{code:'000999',name:'Conflicting account'}));assert.equal(response.status,400);assert.equal(db.prepare("SELECT count(*) n FROM customers WHERE customer_code='000999'").get().n,0);
+globalThis.__auth.companyCode='b';
+assert.equal((await setup.PUT(req('/api/account-setup',{customerAccountPrefix:'4111',supplierAccountPrefix:'4011',createGroups:true},'PUT'))).status,200);
+response=await suppliers.POST(req('/api/suppliers',{code:'012345',name:'Other company supplier'}));assert.equal(response.status,201);assert.notEqual((await response.json()).supplier.accountId,supplier.accountId);
+assert.equal(db.prepare('PRAGMA integrity_check').get().integrity_check,'ok');
+console.log('PASS: shared backend rejects group/inactive/cross-company postings including single writes; full-batch rollback; six-to-nine-digit rejection; longest prefix; leading-zero manual account; immutable referenced codes; prefix change preservation; conflicts and company isolation.');
+
+
+
+

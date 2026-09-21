@@ -1,0 +1,15 @@
+import { getRawDb } from "../../../db";
+import { requireUser } from "../../../db/auth";
+
+const columns="id,salesman_code AS code,name,phone,email,active,notes,created_at AS createdAt";
+function values(body:Record<string,unknown>){
+ const code=String(body.code??"").trim().toUpperCase(),name=String(body.name??"").trim(),phone=String(body.phone??"").trim(),email=String(body.email??"").trim(),notes=String(body.notes??"").trim(),active=body.active===undefined||body.active===true||body.active===1;
+ if(!code||code.length>40||!/^[A-Z0-9][A-Z0-9._-]*$/.test(code))throw new Error("Enter a salesman code using letters, numbers, dots, dashes or underscores.");
+ if(!name||name.length>200)throw new Error("Enter a salesman name of 200 characters or fewer.");
+ if(phone.length>100||email.length>320||notes.length>2000)throw new Error("Salesman details are too long.");
+ if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw new Error("Enter a valid email address.");
+ return{code,name,phone,email,notes,active};
+}
+export async function GET(request:Request){const auth=await requireUser(request);if(auth instanceof Response)return auth;try{return Response.json({salesmen:(await getRawDb().prepare(`SELECT ${columns} FROM salesmen WHERE company_code=? ORDER BY active DESC,name COLLATE NOCASE`).bind(auth.companyCode.toLowerCase()).all()).results})}catch(error){console.error(error);return Response.json({error:"Could not load salesmen."},{status:500})}}
+export async function POST(request:Request){const auth=await requireUser(request);if(auth instanceof Response)return auth;try{const value=values(await request.json() as Record<string,unknown>),salesman=await getRawDb().prepare(`INSERT INTO salesmen(company_code,salesman_code,name,phone,email,active,notes) VALUES(?,?,?,?,?,?,?) RETURNING ${columns}`).bind(auth.companyCode.toLowerCase(),value.code,value.name,value.phone,value.email,value.active?1:0,value.notes).first();return Response.json({salesman},{status:201})}catch(error){const message=error instanceof Error?error.message:"Could not create salesman.";return Response.json({error:/UNIQUE/i.test(message)?"This salesman code already exists.":message},{status:/UNIQUE/i.test(message)?409:400})}}
+export async function PUT(request:Request){const auth=await requireUser(request);if(auth instanceof Response)return auth;try{const body=await request.json() as Record<string,unknown>,id=Number(body.id),value=values(body);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Invalid salesman."},{status:400});const salesman=await getRawDb().prepare(`UPDATE salesmen SET salesman_code=?,name=?,phone=?,email=?,active=?,notes=? WHERE id=? AND company_code=? RETURNING ${columns}`).bind(value.code,value.name,value.phone,value.email,value.active?1:0,value.notes,id,auth.companyCode.toLowerCase()).first();if(!salesman)return Response.json({error:"Salesman not found."},{status:404});return Response.json({salesman})}catch(error){const message=error instanceof Error?error.message:"Could not update salesman.";return Response.json({error:/UNIQUE/i.test(message)?"This salesman code already exists.":message},{status:/UNIQUE/i.test(message)?409:400})}}

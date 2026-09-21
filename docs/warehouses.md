@@ -1,0 +1,13 @@
+# Warehouses
+
+Stock flow → Master data → Warehouses provides company-scoped code, name, address and active status. Codes are immutable. Main Warehouse stays active; other warehouses cannot be deactivated while any item has a nonzero balance. Historical entries retain their codes when warehouse names change.
+
+Migration 0046 adds `warehouse_code` with the default `MAIN` to purchases, invoices, sales orders, returns and stock transactions, and the application initializes Main Warehouse when a company loads stock or warehouse data. Existing quantities, monetary amounts, dates and document states are not rewritten. New companies receive Main Warehouse automatically.
+
+Each purchase, invoice and sales order selects one warehouse for its item lines. Partial order invoices inherit the order warehouse on the server. Draft invoices retain their selection through editing and posting. Posted invoice warehouses cannot be rewritten. Sales stock warnings and blocking checks use stock in the selected warehouse, including an atomic posting-time check. Purchase edits reverse their original warehouse movements and apply the new ones in a single batch. Under the block-negative-stock policy, edits that leave an affected warehouse short roll back.
+
+Sales returns restore only the originally issued quantities to their original warehouse, ignoring any supplied alternative warehouse. This also preserves historical restoration if a warehouse has since been deactivated. Item stock shows company totals plus each warehouse balance; a reasoned adjustment targets one warehouse and validates its expected balance. Warehouse transfers record equal and opposite base-unit ledger entries with one reference and reason. A transfer never changes company totals, cannot exceed source stock, and cannot be applied twice.
+
+Stock transactions identify warehouses and calculate the running balance per item and warehouse. Stock inventory reports and CSV exports can filter a warehouse or show the company total. Estimated inventory value continues to use the company's weighted average purchase cost for the item; warehouse transfers do not create purchase costs. Financial receipts and journals are not assigned a warehouse because they do not move stock.
+
+Validation includes migration preservation, active/company validation, unit-converted receipts, warehouse-specific shortages and simultaneous posting, original-warehouse returns, transfers/replay protection, reasoned adjustments, purchase-edit rollback, order-to-invoice inheritance and report/ledger reconciliation. Existing purchase-tax, landed-cost, Items Master, invoices, order and return regression suites are retained.

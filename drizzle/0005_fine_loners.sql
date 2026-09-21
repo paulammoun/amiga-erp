@@ -1,0 +1,1 @@
+ALTER TABLE `customers` ADD `mof_number` text DEFAULT '' NOT NULL;

@@ -1,0 +1,1 @@
+ALTER TABLE `users` ADD COLUMN `company_code` text NOT NULL DEFAULT 'DEFAULT';

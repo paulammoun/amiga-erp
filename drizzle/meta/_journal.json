@@ -1,0 +1,244 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1789203212061,
+      "tag": "0000_keen_omega_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1789206529621,
+      "tag": "0001_swift_victor_mancha",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789210593000,
+      "tag": "0002_same_lady_bullseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1789211518866,
+      "tag": "0003_nebulous_mentallo",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1789227000443,
+      "tag": "0004_panoramic_jackal",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1789236831127,
+      "tag": "0005_fine_loners",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789272429500,
+      "tag": "0006_kind_sentinel",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1789273862101,
+      "tag": "0007_material_jackpot",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1789277034844,
+      "tag": "0008_menu_branding",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1789282112401,
+      "tag": "0009_purchase_invoices",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1789283552578,
+      "tag": "0010_supplier_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1789285000000,
+      "tag": "0011_user_company_code",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1789286000000,
+      "tag": "0012_companies",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1789292628728,
+      "tag": "0013_company_data_isolation",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1789296000000,
+      "tag": "0014_customer_receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1789299000000,
+      "tag": "0015_overview_message",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1789372800000,
+      "tag": "0016_stock_transactions",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "6",
+      "when": 1789618297244,
+      "tag": "0033_invoice_discount",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1789659380214,
+      "tag": "0034_orange_mandroid",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1789662353173,
+      "tag": "0035_natural_valeria_richards",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "6",
+      "when": 1789664590704,
+      "tag": "0036_tough_maverick",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1789664798645,
+      "tag": "0037_needy_blue_shield",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "6",
+      "when": 1789668000000,
+      "tag": "0038_historical_invoice_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "6",
+      "when": 1789671600000,
+      "tag": "0039_single_currency_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1789675200000,
+      "tag": "0040_invoice_lifecycle",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1789712103413,
+      "tag": "0041_sales_returns",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "6",
+      "when": 1789750000000,
+      "tag": "0042_sales_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1789785911023,
+      "tag": "0043_aspiring_spacker_dave",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "6",
+      "when": 1789788640155,
+      "tag": "0044_shiny_karen_page",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "6",
+      "when": 1789791857731,
+      "tag": "0045_legal_true_believers",
+      "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "6",
+      "when": 1789792507526,
+      "tag": "0046_watery_satana",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "6",
+      "when": 1789820340517,
+      "tag": "0047_sad_gamma_corps",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "6",
+      "when": 1789827398221,
+      "tag": "0048_rapid_pyro",
+      "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "6",
+      "when": 1789829285182,
+      "tag": "0049_heavy_rumiko_fujikawa",
+      "breakpoints": true
+    }
+  ]
+}
