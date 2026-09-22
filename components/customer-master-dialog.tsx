@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { createContext, FormEvent, useContext, useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { ContactRound, Info, MapPin, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -10,7 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Combobox, ComboboxContent, ComboboxEmpty, ComboboxInput, ComboboxItem, ComboboxList } from "@/components/ui/combobox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import type { PriceList } from "./price-list-register";
@@ -99,8 +99,17 @@ export default function CustomerMasterDialog({open,customerId,salesmen,priceList
  </form></DialogContent></Dialog>
 }
 
-function Field({label,required,children}:{label:string;required?:boolean;children:React.ReactNode}){return <div className="grid gap-1.5"><Label>{label}{required&&<span className="text-red-500"> *</span>}</Label>{children}</div>}
-function Choice({value,onChange,options,placeholder}:{value:string;onChange:(value:string)=>void;options:string[][];placeholder?:string}){return <Select value={value} onValueChange={onChange}><SelectTrigger className="w-full"><SelectValue placeholder={placeholder}/></SelectTrigger><SelectContent>{options.map(([key,label])=><SelectItem key={key} value={key}>{label}</SelectItem>)}</SelectContent></Select>}
+const FieldLabelContext=createContext<string|undefined>(undefined);
+function Field({label,required,children}:{label:string;required?:boolean;children:React.ReactNode}){const labelId=useId();return <div className="grid gap-1.5"><Label id={labelId}>{label}{required&&<span className="text-red-500"> *</span>}</Label><FieldLabelContext.Provider value={labelId}>{children}</FieldLabelContext.Provider></div>}
+function Choice({value,onChange,options,placeholder}:{value:string;onChange:(value:string)=>void;options:string[][];placeholder?:string}){
+ const container=useRef<HTMLDivElement>(null);
+ const labelId=useContext(FieldLabelContext);
+ const items=options.map(([code,label])=>({code,label}));
+ return <div ref={container}><Combobox items={items} value={items.find(item=>item.code===value)??null} onValueChange={item=>{if(item)onChange(item.code)}} itemToStringLabel={item=>item.label} isItemEqualToValue={(item,selected)=>item.code===selected.code} filter={(item,query)=>[item.code,item.label].join(" ").toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())}>
+  <ComboboxInput className="w-full" aria-labelledby={labelId} placeholder={placeholder??"Search or select…"}/>
+  <ComboboxContent portalContainer={container}><ComboboxEmpty>No matching options.</ComboboxEmpty><ComboboxList>{item=><ComboboxItem key={item.code} value={item}>{item.label}</ComboboxItem>}</ComboboxList></ComboboxContent>
+ </Combobox></div>
+}
 function Check({label,checked,onChange}:{label:string;checked:boolean;onChange:(value:boolean)=>void}){return <label className="flex cursor-pointer items-center gap-2 text-sm font-medium"><Checkbox checked={checked} onCheckedChange={value=>onChange(value===true)}/><span>{label}</span></label>}
 function Section({title,description,action,children}:{title:string;description:string;action?:React.ReactNode;children:React.ReactNode}){return <section className="rounded-2xl border border-[#eadfe1] bg-white p-5 shadow-sm"><div className="mb-5 flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold">{title}</h3><p className="mt-1 text-sm text-slate-500">{description}</p></div>{action}</div>{children}</section>}
 function EmptyRelated({icon:Icon,text}:{icon:typeof ContactRound;text:string}){return <div className="grid min-h-36 place-items-center rounded-xl border border-dashed bg-slate-50 text-center text-sm text-slate-500"><div><Icon className="mx-auto mb-2 size-7 text-slate-300"/><p>{text}</p></div></div>}
