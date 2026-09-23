@@ -63,7 +63,18 @@ console.log('PASS: real API prefix setup, migration dry run/apply/retry, incompa
 console.log('PASS: customer create and rename APIs, CSV import retry, incompatible customer/import codes, backend journal rejection of group accounts.');
 const createAccount=(number,name='Manual')=>accounts.POST(req('/api/accounts',{accountNumber:number,name,accountType:'asset',currency:'USD',active:true}));
 for(const code of ['123456','123456789','12x','12345678901'])assert.equal((await createAccount(code)).status,400);
+response=await createAccount('8888000001');
+assert.equal(response.status,201,await response.clone().text());
+const standalone=(await response.json()).account;
+let standaloneTree=(await (await accounts.GET(new Request('https://test/api/accounts'))).json()).accounts;
+assert.equal(standaloneTree.find(a=>a.id===standalone.id).parentId,null);
+assert.equal(standaloneTree.find(a=>a.id===standalone.id).depth,0);
+assert.ok((await (await accounts.GET(new Request('https://test/api/accounts?posting=1'))).json()).accounts.some(a=>a.id===standalone.id));
 assert.equal((await createAccount('8888000001')).status,400);
+assert.equal((await accounts.PUT(req('/api/accounts',{...standalone,accountNumber:'9999000001'},'PUT'))).status,200);
+assert.equal((await createAccount('9999')).status,201);
+standaloneTree=(await (await accounts.GET(new Request('https://test/api/accounts'))).json()).accounts;
+assert.equal(standaloneTree.find(a=>a.id===standalone.id).parentId,standaloneTree.find(a=>a.accountNumber==='9999').id);
 assert.equal((await createAccount('0012')).status,201);assert.equal((await createAccount('0012000001')).status,201);
 assert.equal((await createAccount('41110')).status,201);
 let current=(await (await accounts.GET(new Request('https://test/api/accounts'))).json()).accounts;
@@ -96,3 +107,15 @@ console.log('PASS: shared backend rejects group/inactive/cross-company postings 
 
 
 
+
+globalThis.__auth.companyCode='standalone-company';
+db.exec("INSERT INTO currencies(company_code,code,name,rate,active) VALUES('standalone-company','USD','USD',1,1)");
+response=await createAccount('0012000001','First account without groups');
+assert.equal(response.status,201,await response.clone().text());
+const firstAccount=(await response.json()).account;
+assert.equal(firstAccount.accountNumber,'0012000001');
+await globalThis.__db.batch([ledgerWrite('0012000001','standalone-company')]);
+assert.equal(db.prepare("SELECT account_id FROM accounting_transactions WHERE company_code='standalone-company'").get().account_id,firstAccount.id);
+assert.equal((await accounts.PUT(req('/api/accounts',{...firstAccount,accountNumber:'0012000002'},'PUT'))).status,400);
+assert.equal(db.prepare("SELECT count(*) n FROM accounts WHERE company_code='standalone-company'").get().n,1);
+console.log('PASS: standalone posting account creation, leading zeros, posting eligibility, duplicate rejection, unreferenced renumbering, later grouping, posting without groups, and referenced code protection.');

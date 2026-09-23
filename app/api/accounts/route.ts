@@ -38,7 +38,6 @@ async function save(request:Request,update:boolean){
   const refArgs=old?[company,id,old.accountNumber,company,id,old.accountNumber,company,id,old.accountNumber,company,id,old.accountNumber,old.accountNumber,company,old.accountNumber]:[];
   if(renumber&&!await db.prepare(`SELECT 1 AS valid WHERE ${unreferenced}`).bind(...refArgs).first())throw new Error("Accounts referenced by transactions, parties, groups or configuration cannot be renumbered. Deactivate the account to preserve history.");
   const conditions:string[]=[],args:unknown[]=[];
-  if(number.length===10&&(!old||renumber)){conditions.push("EXISTS(SELECT 1 FROM accounts WHERE company_code=? AND length(account_number) BETWEEN 1 AND 5 AND account_number NOT GLOB '*[^0-9]*' AND substr(?,1,length(account_number))=account_number)");args.push(company,number)}
   if(renumber){conditions.push(unreferenced);args.push(...refArgs)}
   if(old){conditions.push('EXISTS(SELECT 1 FROM accounts WHERE id=? AND company_code=? AND account_number=? AND name=? AND managed=?)');args.push(id,company,old.accountNumber,old.name,old.managed)}
   const guard=accountAssertion(db,conditions.join(' AND ')||'1',args);
