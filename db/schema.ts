@@ -45,10 +45,18 @@ export const priceListItems = sqliteTable("price_list_items", {
   price: real("price").notNull(),
 }, table => [uniqueIndex("price_list_items_list_item_unique").on(table.priceListId,table.itemId),index("idx_price_list_items_item").on(table.itemId)]);
 
+export const areaManagers = sqliteTable("area_managers", {
+ id: integer("id").primaryKey({autoIncrement:true}), companyCode:text("company_code").notNull(), code:text("code").notNull(), name:text("name").notNull(), phone:text("phone").notNull().default(""), email:text("email").notNull().default(""), notes:text("notes").notNull().default(""), active:integer("active",{mode:"boolean"}).notNull().default(true),
+}, t=>[uniqueIndex("area_managers_company_code_unique").on(t.companyCode,t.code)]);
+export const salesSupervisors = sqliteTable("sales_supervisors", {
+ id: integer("id").primaryKey({autoIncrement:true}), companyCode:text("company_code").notNull(), code:text("code").notNull(), name:text("name").notNull(), phone:text("phone").notNull().default(""), email:text("email").notNull().default(""), notes:text("notes").notNull().default(""), active:integer("active",{mode:"boolean"}).notNull().default(true), areaManagerId:integer("area_manager_id").notNull().references(()=>areaManagers.id),
+}, t=>[uniqueIndex("sales_supervisors_company_code_unique").on(t.companyCode,t.code)]);
+
 export const salesmen = sqliteTable("salesmen", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   companyCode: text("company_code").notNull(),
   salesmanCode: text("salesman_code").notNull(),
+  supervisorId:integer("supervisor_id").references(()=>salesSupervisors.id),
   name: text("name").notNull(),
   phone: text("phone").notNull().default(""),
   email: text("email").notNull().default(""),
@@ -562,10 +570,20 @@ export const accounts = sqliteTable("accounts", {
  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, table=>[uniqueIndex("accounts_company_number_unique").on(table.companyCode,table.accountNumber),index("idx_accounts_company_name").on(table.companyCode,table.name)]);
 
+export const journalVoucherTypes = sqliteTable("journal_voucher_types", {
+ id: integer("id").primaryKey({autoIncrement:true}),
+ companyCode: text("company_code").notNull(),
+ description: text("description").notNull(),
+ prefix: text("prefix").notNull(),
+ active: integer("active",{mode:"boolean"}).notNull().default(true),
+ createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, table=>[uniqueIndex("jv_types_company_prefix_unique").on(table.companyCode,table.prefix)]);
+
 export const journalVouchers = sqliteTable("journal_vouchers", {
  id: integer("id").primaryKey({autoIncrement:true}),
  companyCode: text("company_code").notNull(),
  voucherNumber: text("voucher_number").notNull(),
+ voucherTypeId: integer("voucher_type_id").references(()=>journalVoucherTypes.id),
  voucherDate: text("voucher_date").notNull(),
  currency: text("currency").notNull(),
  externalReference: text("external_reference").notNull().default(""),
